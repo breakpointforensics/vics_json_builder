@@ -1,7 +1,9 @@
 # vics_json_builder
 Python Script to:
 Ingest standard output from PhotoRec and to build a VICS compliant JSON for import into tools such as Griffeye.
+
 or 
+
 Fix some formatting issues with existing JSON for proper linebreaks and delimination.
 
 Requirements:
