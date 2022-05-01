@@ -13,26 +13,26 @@ Requirements:
 
   
  
-Usage:
+      Usage:
 
- -Download jsonbuilder2.pyw
- 
- -Run program
- 
-BUILD:
- 
- -Select the root of folder holding carved data.
- 
- -Enter a SourceID/name for the carved data.
- 
- -Selecte 'Build JSON'
+       -Download jsonbuilder2.pyw
 
- 
- FIX:
- 
-  -Select Existing JSON
-  
-  -Select 'Fix JSON'
+       -Run program
+
+      BUILD:
+
+       -Select the root of folder holding carved data.
+
+       -Enter a SourceID/name for the carved data.
+
+       -Selecte 'Build JSON'
+
+
+       FIX:
+
+        -Select Existing JSON
+
+        -Select 'Fix JSON'
   
   
 ***New/Modified JSON's will be output to same directory as source***   
