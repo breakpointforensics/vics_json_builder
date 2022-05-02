@@ -28,7 +28,7 @@ import datetime
 SCRIPT_NAME = 'JSON BUILDER'
 SCRIPT_VERSION = '2'
 #Python3 Compliant
-#5/02/2022
+#5/01/2022
 #Author: David Haddad
 JSON_TYPES = '.json'
 ##Set Timezone paramenter to fixup MAC timestamps later for JSON compliance
@@ -238,6 +238,7 @@ def buildjson(SourceID,carveoutparent):
                 MediaFilesdict.update({'SourceID' : SourceID})
                 PhysicalLocation = os.path.splitext(filename)[0]
                 PhysicalLocation = int(PhysicalLocation[1:])
+                #PhysicalLocation = 1
                 MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})            
                 
                 
@@ -358,14 +359,7 @@ def buildjson(SourceID,carveoutparent):
     print ('JSON with ' + str(MediaID + 1) + ' Entries Generated')
     print ('Total Runtime= ' + total_time)
     print ('JSON saved to: ' + str(jsonoutlocation))    
-    
-    
-def cypher(message):
-    cypher_words = []
-    for letter in message:
-        cypher_letter = format(ord(letter), 'b')
-        cypher_words.append(cypher_letter)
-    return ' '.join(cypher_words)    
+
 
 def main():
     
