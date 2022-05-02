@@ -23,26 +23,32 @@ import uuid
 import math
 import datetime
 
+
 ## Define pseudo constants
 SCRIPT_NAME = 'JSON BUILDER'
 SCRIPT_VERSION = '2'
 #Python3 Compliant
-#5/01/2022
+#5/02/2022
 #Author: David Haddad
 JSON_TYPES = '.json'
 ##Set Timezone paramenter to fixup MAC timestamps later for JSON compliance
 tzinfo = '+00:00'
-print (tzinfo)
-##Get Current UTC Offset ## Not used because not respected properly by during DI import
-#utc_offset = time.localtime().tm_gmtoff
-#tzinfo = datetime.timezone(datetime.timedelta(0, -int(utc_offset)))
-#tzinfo = str(tzinfo).replace('UTC', '')
-#print (utc_offset)
+
+##Get Current UTC Offset
+utc_offset = time.localtime().tm_gmtoff
+##Get corrected ZTIME delta from local machine
+ztimedelta = datetime.timezone(datetime.timedelta(0, -int(utc_offset)))
+print ('LOCAL UTC OFFSET: ' + str(utc_offset))
+print ('Delta Value to adjust back to Zeulu Time: ' + str(ztimedelta))
+
+
 
 ##Create extension lists of different MimeTypes
 IMAGE_TYPES = ['.ai', '.bmp', '.cam', '.cr2', '.gif', '.heic', '.heif', '.ind', '.indd', '.j2k', '.jfi', '.jfif', '.jif', '.jp2', '.jpe', '.jpeg', '.jpf', '.jpg', '.jpx', '.k25', '.mj2', '.nrw', '.pct', '.png', '.psb', '.psd', '.psd', '.raw', '.rw2', '.svg', '.svgz', '.tif', '.tiff', '.wdp', '.x3f', '.xcf', 'arw', 'dib', 'dsc', 'eps', 'indt', 'jpm', 'webp']
 VIDEO_TYPES = [',dv', '.3g2', '.3gp', '.amv', '.asf', '.avi', '.drc', '.f4a', '.f4b', '.f4v', '.flv', '.gifv', '.m2ts', '.m2v', '.m4p', '.m4v', '.mng', '.mov', '.mp2', '.mp4', '.mpe', '.mpeg', '.mpg', '.mts', '.nsv', '.ogg', '.ogv', '.rm', '.roq', '.svi', '.ts', '.viv', '.vob', '.wmv', '.yuv', 'f4p', 'm4v', 'mkv', 'mpv', 'mxf', 'rmvb', 'webm']
-EXT_LIST = (IMAGE_TYPES + VIDEO_TYPES)
+DOC_TYPES = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.odt', '.ods', '.odp']
+
+EXT_LIST = (IMAGE_TYPES + VIDEO_TYPES + DOC_TYPES)
 
 
 
@@ -104,7 +110,7 @@ def buildjson(SourceID,carveoutparent):
     cwd = carveoutparent
     os.chdir(cwd)
     logging.info('Changing CWD to: ' + cwd)
-    print ('Word Directory Set to: ' + cwd)
+    print ('Work Directory Set to: ' + cwd)
     MediaID = -1
     GUID = str((uuid.uuid4()))
     logging.info('CaseID GUID Generated: ' + str(GUID))
@@ -184,6 +190,8 @@ def buildjson(SourceID,carveoutparent):
                     MimeType = 'image'
                 if filename.lower().endswith(tuple(VIDEO_TYPES)):
                     MimeType = 'video'
+                if filename.lower().endswith(tuple(DOC_TYPES)):
+                    MimeType = 'text'                
                 filedict.update({'MimeType' : MimeType})            
                 IsPrecategorized = False
                 filedict.update({'IsPrecategorized' : IsPrecategorized})            
@@ -205,19 +213,21 @@ def buildjson(SourceID,carveoutparent):
                 MediaFilesdict.update({'FilePath' : FilePath})
                 
                 ##Get MAC times for files and adjust to proper json formatting per VICS spec
-                Created = datetime.datetime.strptime(time.ctime(os.path.getctime(fullpath)), '%c')
+               
+                
+                Created = datetime.datetime.strptime(time.ctime(os.path.getctime(fullpath)- utc_offset), '%c')
                 Created = json.dumps(Created.isoformat())
                 Created = Created + str(tzinfo)
                 Created = Created.replace('"', '')
                 MediaFilesdict.update({'Created' : Created})
                 
-                Written = datetime.datetime.strptime(time.ctime(os.path.getmtime(fullpath)), '%c')
+                Written = datetime.datetime.strptime(time.ctime(os.path.getmtime(fullpath)- utc_offset), '%c')
                 Written = json.dumps(Written.isoformat())
                 Written = Written + str(tzinfo)
                 Written = Written.replace('"', '')
                 MediaFilesdict.update({'Written' : Written})
                 
-                Accessed = datetime.datetime.strptime(time.ctime(os.path.getatime(fullpath)), '%c')
+                Accessed = datetime.datetime.strptime(time.ctime(os.path.getatime(fullpath)- utc_offset), '%c')
                 Accessed = json.dumps(Accessed.isoformat())
                 Accessed = Accessed + str(tzinfo)
                 Accessed = Accessed.replace('"', '')
@@ -227,7 +237,7 @@ def buildjson(SourceID,carveoutparent):
                 MediaFilesdict.update({'Unallocated' : Unallocated})
                 MediaFilesdict.update({'SourceID' : SourceID})
                 PhysicalLocation = os.path.splitext(filename)[0]
-                PhysicalLocation = int(PhysicalLocation[1:])            
+                PhysicalLocation = int(PhysicalLocation[1:])
                 MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})            
                 
                 
@@ -270,18 +280,20 @@ def buildjson(SourceID,carveoutparent):
                 data[0]['value'][0]['Media'].append(filedict)
                 
                 ##Build out progress meter
-                # Checks if more then 2 seconds since last time update
+                ##Increment loop progress count
+                progress += 1
+                ## Checks for time delta since last update
                 dt = time.time() - prev_time
-                if dt > 2:
-                    # If greater then 1 updates new prev_time
-                    #prev_time = time.time()
-                    #Get Progress percent by comparing progress bytes with total bytes of file
-                    progress += 1
-                    #print (progress)
+
+                if dt > 3:
+                    ## If greater then 3 updates new prev_time
+                    prev_time = time.time()
+                    ##Compute Progress
+                    ##Get Progress percent by comparing progress count with total sum of files.
                     progressPercent = (100.0*progress)/count
-                    #Truncate Percent to whole number
+                    ##Truncate Percent to whole number
                     progressPercent = math.trunc(progressPercent)
-                    #Return current percent in status bar of window
+                    ##Return current percent in status bar of window
                     window['-STATUS-'].update('Building JSON BLOB: ' + str(progressPercent) + '%')
                     
 
@@ -348,7 +360,12 @@ def buildjson(SourceID,carveoutparent):
     print ('JSON saved to: ' + str(jsonoutlocation))    
     
     
-    
+def cypher(message):
+    cypher_words = []
+    for letter in message:
+        cypher_letter = format(ord(letter), 'b')
+        cypher_words.append(cypher_letter)
+    return ' '.join(cypher_words)    
 
 def main():
     
@@ -372,6 +389,7 @@ def main():
     sg.theme('Dark Gray 11 ')
     #Define layout window for PySimpleGUI
     
+
      
     layout = [#[sg.Column([[logo]], justification='center')],
               [sg.Text('VICS JSON BUILDER', size=(30, 1), justification='center', font=("Unispace", 25), relief=sg.RELIEF_RIDGE)],
@@ -396,7 +414,7 @@ def main():
     
     
     
-    window = sg.Window('VICS JSON BUILDER', layout,icon='icon.ico', location=(-5,0), size=(600, 600))
+    window = sg.Window('VICS JSON BUILDER', layout=layout, alpha_channel=.99, icon='icon.ico', location=(1,1), size=(600, 600))
     #print (settings)
    
     while True:
@@ -431,12 +449,7 @@ def main():
             jsonin = jsonin.replace("/", "\\")
             print ('JSON Input path: ' + str(jsonin))        
 
-   
-        '''
-                   
-    
-        '''
-        
+
             
         #Register even and validation logic when start button pressed
         if event  == 'Build JSON':
@@ -487,14 +500,14 @@ def main():
         #Opens Log Folder in Explorer
         elif event == 'Logs':
             logpath = os.path.realpath(bfipappdatalog)
-            os.startfile(logpath)            
+            os.startfile(logpath)
+        
             
         elif event == '-END KEY-':
             return_value = values[event]
             window['-STATUS-'].update(f'Status: {return_value}')
             print ('All Finished')
             logging.info('Process Finished')
-            sg.theme('Reddit ')
             sg.popup("Process Completed")            
     
     '''
