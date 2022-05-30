@@ -23,12 +23,28 @@ import uuid
 import math
 import datetime
 
-
+#Imports the splash screen controler used only after commpiling with pyinstaller using splashscreen flag.  uses try method in ase pyi_splash not available so program doesn't crash.
+try:
+    
+    import pyi_splash
+    
+    # Update the text on the splash screen
+    pyi_splash.update_text("Loading")
+    pyi_splash.update_text("Please be patient...")
+    
+    # Close the splash screen. It does not matter when the call
+    # to this function is made, the splash screen remains open until
+    # this function is called or the Python program is terminated.
+    pyi_splash.close()
+ 
+except ImportError:
+     pass
+ 
 ## Define pseudo constants
 SCRIPT_NAME = 'JSON BUILDER'
-SCRIPT_VERSION = '3'
+SCRIPT_VERSION = '3.01'
 ##Python3 Compliant
-##5/15/2022
+##5/29/2022
 ##Author: David Haddad
 JSON_TYPES = '.json'
 indentlevel = 4
@@ -64,7 +80,6 @@ os.system(mkhomesetting)
 
 
 
-IMPORT_SETTINGS = "CustomImportSettings.json"
 sg.user_settings_filename(filename=appdatasetting + 'JSONBUILDER_' + SCRIPT_VERSION + '.json')
 settings = sg.user_settings()
 settings['-SCRIPT_VERSION-'] = SCRIPT_VERSION
@@ -101,9 +116,9 @@ def fixjson(jsonin):
 
     return 'Done!'
 
-def buildjson(SourceID,carveoutparent):
+def buildjson(sourceID,carveoutparent):
     carveoutparent = carveoutparent.replace("/", "\\")
-    logging.info('JSON Builder Initialized with SourceID: ' + str(SourceID) + ' & Carved Content Path: ' + carveoutparent)    
+    logging.info('JSON Builder Initialized with sourceID: ' + str(sourceID) + ' & Carved Content Path: ' + carveoutparent)    
     startTime = time.time()
     logging.info('Start Time is: ' + str(startTime))
     ##change cwd to carveoutparent in order to buld correct relative paths
@@ -111,10 +126,12 @@ def buildjson(SourceID,carveoutparent):
     os.chdir(cwd)
     logging.info('Changing CWD to: ' + cwd)
     print ('Work Directory Set to: ' + cwd)
+    ##Create a MediaID Counter to assign ID to files in final JSON
     MediaID = -1
+    ##Generate a random case GUID
     GUID = str((uuid.uuid4()))
     logging.info('CaseID GUID Generated: ' + str(GUID))
-    jsontarget = (str(SourceID) + '.json')
+    jsontarget = (str(sourceID) + '.json')
     jsonoutlocation = os.path.join(carveoutparent, jsontarget)
     logging.info('JSON Will be saved to: ' + str(jsonoutlocation))
     
@@ -140,6 +157,8 @@ def buildjson(SourceID,carveoutparent):
         ##Opens the empty JSON and keeps it open in data object
         data = json.load(open('temp.json'))
         logging.info('VICS JSON DATA Object Loaded and waiting for entries')
+        ##Check if value is dictionary and convert for now to list for more efficient value updates.
+        ##Will be converted back to dictionary later after json data blob complete
         if type(data) is dict:
             data = [data]
         ##Set target subkey/list to update
@@ -174,6 +193,7 @@ def buildjson(SourceID,carveoutparent):
                 filedict.update({'MediaID' : MediaID})
                 #Category = 0
                 #filedict.update({'Category' : Category})
+                ##MD5 Field is left blank since we don't waste time calculating MD5 values right now as it will be repeated later anyways with Griffeye import.
                 MD5 = ''
                 filedict.update({'MD5' : MD5})
                 ##Join the root path and filename for fullpath
@@ -193,18 +213,16 @@ def buildjson(SourceID,carveoutparent):
                 if filename.lower().endswith(tuple(DOC_TYPES)):
                     MimeType = 'text'                
                 filedict.update({'MimeType' : MimeType})            
+                ##Since no categorization happening during intial file recovery, IsPrecategorized is hardcoded False
                 IsPrecategorized = False
                 filedict.update({'IsPrecategorized' : IsPrecategorized})            
                 
-                
-                
-                
-                
-                ##Build SourceID from cwd
+ 
+                ##Build sourceID from cwd, not used in favor of user selected sourceID
                 #basename = os.path.basename(cwd)            
-                #SourceID = basename.split('_')[0]
+                #sourceID = basename.split('_')[0]
                 ##build filepath
-                FilePath = (SourceID + '\\' + RelativeFilePath)
+                FilePath = (sourceID + '\\' + RelativeFilePath)
            
                 ##Add the correct keys to secondary media files dictionary object
                 MediaFilesdict = {}
@@ -214,19 +232,21 @@ def buildjson(SourceID,carveoutparent):
                 
                 ##Get MAC times for files and adjust to proper json formatting per VICS spec
                
-                
+                ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset
                 Created = datetime.datetime.strptime(time.ctime(os.path.getctime(fullpath)- utc_offset), '%c')
                 Created = json.dumps(Created.isoformat())
                 Created = Created + str(tzinfo)
                 Created = Created.replace('"', '')
                 MediaFilesdict.update({'Created' : Created})
                 
+                ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset                
                 Written = datetime.datetime.strptime(time.ctime(os.path.getmtime(fullpath)- utc_offset), '%c')
                 Written = json.dumps(Written.isoformat())
                 Written = Written + str(tzinfo)
                 Written = Written.replace('"', '')
                 MediaFilesdict.update({'Written' : Written})
                 
+                ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset                
                 Accessed = datetime.datetime.strptime(time.ctime(os.path.getatime(fullpath)- utc_offset), '%c')
                 Accessed = json.dumps(Accessed.isoformat())
                 Accessed = Accessed + str(tzinfo)
@@ -235,21 +255,50 @@ def buildjson(SourceID,carveoutparent):
                 
                 Unallocated = True
                 MediaFilesdict.update({'Unallocated' : Unallocated})
-                MediaFilesdict.update({'SourceID' : SourceID})
-                ##Strip the extension from filename
-                PhysicalLocation = os.path.splitext(filename)[0]
+                MediaFilesdict.update({'sourceID' : sourceID})
+                
+                
                 ##Set Seperator thats placed in some filenames of recovered files
-                sep = '_'
-                ##Strips everything right of sep including sep
-                PhysicalLocation = str(PhysicalLocation.split(sep,1)[0])
-                ##See if remaining value is valid int and write to PhysicalLocation if so
-                try:
-                    PhysicalLocation = int(PhysicalLocation[1:])
-                    MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})
-                ##If not valid int log file and move on
-                except:
-                    logging.info('Was not able to get valid physical location integer for ' + filename)
-                    pass  
+                sep1 = 'Archives\\'
+                sep2 = '_'
+                sep3 = '.'
+                ##See if File is from Extracted Archive and if we can determine phys location from path
+                if '\\Archives\\' in RelativeFilePath:
+                    try:
+                        #print('Unpacked Archive Found')
+                        ##Strips to Left ##Strips at first 'Archives\\' and leading characters
+                        PhysicalLocation = str(RelativeFilePath.split(sep1,1)[1])
+                        ##Strips to Right ##Strips at first '_' and trailing characters
+                        PhysicalLocation = str(PhysicalLocation.split(sep2,1)[0])
+                        ##Strips to Right ##Strips at first '.' and trailing characters
+                        PhysicalLocation = str(PhysicalLocation.split(sep3,1)[0])                        
+                        ##Strip Leading Character and convert to int
+                        PhysicalLocation = int(PhysicalLocation[1:])
+                        MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})
+                    except:
+                        logging.info('Was not able to get valid physical location integer for Unpacked Archive File: ' + RelativeFilePath)
+                        ##If unable to deduce physical sector don't add the key:value                        
+                        #PhysicalLocation = 0
+                        #MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})                     
+                
+                if '\\Archives\\' not in RelativeFilePath:
+                    
+                    ##See if we can determine phys location from filename
+                    ##Strip the extension from filename
+                    PhysicalLocation = os.path.splitext(filename)[0]
+        
+                    ##Strips everything right of sep2 including sep
+                    PhysicalLocation = str(PhysicalLocation.split(sep2,1)[0])
+                    ##Try and strip leading character, and See if remaining value is valid int and write to PhysicalLocation if so
+                    try:
+                        PhysicalLocation = int(PhysicalLocation[1:])
+                        MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})
+                    ##If not valid int log file and move on
+                    except:
+                        logging.info('Was not able to get valid physical location integer for ' + filename)
+                        ##If unable to deduce physical sector don't add the key:value
+                        #PhysicalLocation = 0
+                        #MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})  
                     
 
                 
@@ -272,7 +321,7 @@ def buildjson(SourceID,carveoutparent):
                 #print ('Relative Path= ' + str(RelativeFilePath))
                 #print ('MimeType= ' + MimeType)
                 #print ('Unallocated= ' + str(Unallocated))
-                #print ('SourceID= ' + SourceID)
+                #print ('sourceID= ' + sourceID)
                 #print ('Physical Sector Offset= ' + str(PhysicalLocation))
                 #print ('Media Size= ' + str(MediaSize))
                 #print ('Created= ' + str(Created))
@@ -305,45 +354,34 @@ def buildjson(SourceID,carveoutparent):
                     ##Truncate Percent to whole number
                     progressPercent = math.trunc(progressPercent)
                     ##Return current percent in status bar of window
-                    window['-STATUS-'].update('Building JSON BLOB: ' + str(progressPercent) + '%')
+                    window['-STATUS-'].update('Building JSON BLOB: '+ str(sourceID) + ' ' + str(progressPercent) + '%')
                     
 
                 
-
-                
  
-    ##Now that loop is finished convert to the data list to a string to do some additional cleanup to ensure proper JSON compliant
-    datastring = str(data)
-    ##Strip [] add beginning and end of json
-    datastring = datastring[1:-1]
-    ## Replace single with double quotes
-    datastring = datastring.replace("'", '"')
-    ##Set booleans to lowercase per JSON spec
-    datastring = datastring.replace("True", 'true')
-    datastring = datastring.replace("False", 'false')
+
+    ##Strips the single json blob from list to remove hard out brackets from final json for VICS compliance. 
+    data = data[0]
     
     
-    
-    
-    try:
+    ##Try and open the final JSON and write out data.
+    try:  
         logging.info('Trying to open: ' + jsontarget + ' to write completed JSON blob to file')
-        window['-STATUS-'].update('Writing JSON to File Please wait...This might take a second...')
-        with open(jsontarget, 'a') as f:
-            f.write(str(datastring))
-        logging.info(jsontarget + ' Opened Successfully')
-        
+        window['-STATUS-'].update('Writing JSON to File Please wait...This might take a second...')        
+        with open(jsontarget, 'w') as f:
+            f.write(json.dumps(data, indent=4, separators=(',', ':')))
+        print(str(sourceID) + ' JSON Successfully Updated')
+        logging.info('JSON Successfully Updated')    
+    
     except (KeyError, OSError, NameError) as error:
-        logging.exception('Error writing JSON blob to file')
-        print('Error writing JSON blob to file')
+        logging.exception('Error writing JSON blob to file for: ' + str(sourceID))
+        print('Error writing JSON blob to file for: ' + str(sourceID))
         exception = True
-        return     
+        return    
+
     
-    
-    window['-STATUS-'].update('Almost done...Cleaning up JSON Formating')
-    ##Sending final jsonfile to fixjson function to pretty up formatting
-    logging.info('Sending final JSON File to fixjson function to clean up formatting')
-    jsonin = jsontarget
-    fixjson(jsonin)
+    window['-STATUS-'].update('Almost done...Cleaning up...')
+
     
     
     ##Cleanup Temp File
@@ -371,14 +409,15 @@ def buildjson(SourceID,carveoutparent):
     print ('Total Runtime= ' + total_time)
     logging.info('Total Runtime= ' + total_time)
     print ('JSON saved to: ' + str(jsonoutlocation))
-    logging.info('JSON saved to: ' + str(jsonoutlocation))        
+    logging.info('JSON saved to: ' + str(jsonoutlocation))
+    window['-STATUS-'].update('Completed')
 
 
 def main():
     
     
     global window
-    global SourceID
+    global sourceID
 
 
     global SEARCH_TYPES
@@ -399,17 +438,15 @@ def main():
     icon1 = b'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'
 
      
-    layout = [#[sg.Column([[logo]], justification='center')],
+    layout = [
               [sg.Titlebar('Breakpoint Forensics', icon=icon1, background_color="#373737")],
               [sg.Text('VICS JSON BUILDER', size=(30, 1), justification='center', font=("Unispace", 25), relief=sg.RELIEF_RIDGE)],
               [sg.Text('Build VICS JSON', font=('Helvetica', 13), relief=sg.RELIEF_RIDGE)],
-              [sg.Text('Enter Source Name/ID', size =(28,1)), sg.InputText(sg.user_settings_get_entry('-SourceID-', ''), key = 'SourceID')],
+              [sg.Text('Enter Source Name/ID', size =(28,1)), sg.InputText(sg.user_settings_get_entry('-sourceID-', ''), key = 'sourceID')],
               [sg.Text('_'  * 100, size=(80, 1))],              
               [sg.Text('Select Carved Content Source Folder')],
               [sg.Input(sg.user_settings_get_entry('-carveoutparent-', ""), key='carveoutparent'), sg.FolderBrowse()],
               [sg.Button('Build JSON')],
-              #[sg.Text('JSON Output Location', font=('Helvetica', 13), relief=sg.RELIEF_RIDGE)], 
-              #[sg.Input(sg.user_settings_get_entry('-jsonpath-', ''), key='jsonpath'), sg.FileSaveAs(file_types=(('JSON', 'json'),))],
               [sg.Text('_'  * 100, size=(80, 1))],
               [sg.Text('JSON Format Fixer', font=('Helvetica', 13), relief=sg.RELIEF_RIDGE)], 
               [sg.Text('Select Existing JSON')],              
@@ -444,14 +481,14 @@ def main():
             
         
     
-        SourceID = values['SourceID']
+        sourceID = values['sourceID']
         carveoutparent = values['carveoutparent'] 
         carveoutparent = carveoutparent.replace("/", "\\")
         indentlevel = values['indentlevel']
         #print ('Location of files to build JSON from: '+ str(carveoutparent))
         #jsonpath = values['jsonpath']
         #jsonpath = jsonpath.replace("/", "\\")
-        sg.user_settings_set_entry('-SourceID-', values['SourceID'])
+        sg.user_settings_set_entry('-sourceID-', values['sourceID'])
         sg.user_settings_set_entry('-carveoutparent-', values['carveoutparent'])
         #sg.user_settings_set_entry('-jsonpath-', values['jsonpath'])        
         
@@ -466,8 +503,8 @@ def main():
         if event  == 'Build JSON':
 
             
-            ##Check length of SourceID to validate input
-            if len(SourceID) >= 4:
+            ##Check length of sourceID to validate input
+            if len(sourceID) >= 4:
                 print('Valid Source ID Entered')
                 
     
@@ -480,7 +517,7 @@ def main():
                     
                     logging.info('Calling JSON Builder')
                     window.perform_long_operation(lambda :
-                                                  buildjson(SourceID,carveoutparent),
+                                                  buildjson(sourceID,carveoutparent),
                                                   '-END KEY-')                     
                     
    
@@ -488,7 +525,7 @@ def main():
                 else:
                      print('Please Enter Valid Source Folder Containing Files to build JSON from')
             else:            
-                print('Please enter valid SourceID containing at least 4 characters!')
+                print('Please enter valid sourceID containing at least 4 characters!')
     
         
         
