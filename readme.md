@@ -11,10 +11,10 @@ Requirements:
   Release Version:
     -No Dependancies required.  All are compiled and builtin.
   
+  
   Source/Script Version:
-    -Python 3
-
-    -Python "pysimplegui" Module (pip install pysimplegui)
+   -Python 3
+   -Python "pysimplegui" Module (pip install pysimplegui)
   
 
   
