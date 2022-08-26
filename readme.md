@@ -14,6 +14,7 @@ Requirements:
   
   Source/Script Version:
    -Python 3
+   and
    -Python "pysimplegui" Module (pip install pysimplegui)
   
 
