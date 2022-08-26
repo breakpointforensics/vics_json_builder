@@ -8,9 +8,13 @@ Fix some formatting issues with existing JSON for proper linebreaks and delimina
 
 Requirements:
 
-  Python 3
+  Release Version:
+    -No Dependancies required.  All are compiled and builtin.
   
-  Python "pysimplegui" Module (pip install pysimplegui)
+  Source/Script Version:
+    -Python 3
+
+    -Python "pysimplegui" Module (pip install pysimplegui)
   
 
   
