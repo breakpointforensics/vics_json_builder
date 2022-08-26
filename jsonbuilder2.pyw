@@ -42,9 +42,9 @@ except ImportError:
  
 ## Define pseudo constants
 SCRIPT_NAME = 'JSON BUILDER'
-SCRIPT_VERSION = '3.01'
+SCRIPT_VERSION = '3.02'
 ##Python3 Compliant
-##5/29/2022
+##8/26/2022
 ##Author: David Haddad
 JSON_TYPES = '.json'
 indentlevel = 4
@@ -64,9 +64,9 @@ DOC_TYPES = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.odt', 
 EXT_LIST = (IMAGE_TYPES + VIDEO_TYPES + DOC_TYPES)
 
 
-
-initialcwd = os.getcwd()
-print ('Initial Directory is: ' + str(initialcwd))
+##CWD Process eliminated in lieu changes to how relpath is defined later
+#initialcwd = os.getcwd()
+#print ('Initial Directory is: ' + str(initialcwd))
 
 ##Get Home dir for user and build paths for setting and log locations
 home_dir = Path.home()
@@ -117,24 +117,32 @@ def fixjson(jsonin):
     return 'Done!'
 
 def buildjson(sourceID,carveoutparent):
+    '''
+    ## Injests a sourceiD and path containing carved files for source.
+    ## Walks path of given path looking for matching extensions for media/doc/text and builds VICS json from located files.
+    '''
+    logging.info('Begin buildjson')
+    
     carveoutparent = carveoutparent.replace("/", "\\")
     logging.info('JSON Builder Initialized with sourceID: ' + str(sourceID) + ' & Carved Content Path: ' + carveoutparent)    
-    startTime = time.time()
-    logging.info('Start Time is: ' + str(startTime))
+    json_startTime = time.time()
+    logging.info('JSON Start Time is: ' + str(json_startTime))
+    ##CWD Process eliminated in lieu changes to how relpath is defined later
     ##change cwd to carveoutparent in order to buld correct relative paths
-    cwd = carveoutparent
-    os.chdir(cwd)
-    logging.info('Changing CWD to: ' + cwd)
-    print ('Work Directory Set to: ' + cwd)
+    #cwd = carveoutparent
+    #os.chdir(cwd)
+    #logging.info('Changing CWD to: ' + cwd)
+    #print ('Work Directory Set to: ' + cwd)
     ##Create a MediaID Counter to assign ID to files in final JSON
     MediaID = -1
     ##Generate a random case GUID
     GUID = str((uuid.uuid4()))
     logging.info('CaseID GUID Generated: ' + str(GUID))
-    jsontarget = (str(sourceID) + '.json')
-    jsonoutlocation = os.path.join(carveoutparent, jsontarget)
-    logging.info('JSON Will be saved to: ' + str(jsonoutlocation))
-    
+    jsontarget = (carveoutparent + '\\' + str(sourceID) + '.json')
+    tempjson = (carveoutparent + '\\' + 'temp' + '.json')
+    #jsonoutlocation = os.path.join(carveoutparent, jsontarget)
+    logging.info('JSON Will be saved to: ' + str(jsontarget))
+   
     ##Build Empty VICS JSON FILE
     try:
         logging.info('Trying to build empty JSON Shell')
@@ -142,7 +150,7 @@ def buildjson(sourceID,carveoutparent):
         data = {'@odata.context': 'http://github.com/VICSDATAMODEL/ProjectVic/DataModels/2.0.xml/US/$metadata#Cases', 'value': [{'CaseID': GUID, 'Media': [], 'SourceApplicationName': 'BFIP4GRIFFEYE'}]}
         
         ##write the values out
-        with open('temp.json', 'w') as f:
+        with open(tempjson, 'w') as f:
             f.write(json.dumps(data, indent=indentlevel, separators=(',', ':')))
         print('Empty VICS JSON Created')
         logging.info('Empty VICS JSON Created')
@@ -155,7 +163,7 @@ def buildjson(sourceID,carveoutparent):
     try:
         logging.info('Trying to open empty JSON Object for writing')    
         ##Opens the empty JSON and keeps it open in data object
-        data = json.load(open('temp.json'))
+        data = json.load(open(tempjson))
         logging.info('VICS JSON DATA Object Loaded and waiting for entries')
         ##Check if value is dictionary and convert for now to list for more efficient value updates.
         ##Will be converted back to dictionary later after json data blob complete
@@ -187,123 +195,141 @@ def buildjson(sourceID,carveoutparent):
     for dirpath, dirnames, filenames in os.walk(carveoutparent):
         for filename in filenames:
             if filename.lower().endswith(tuple(EXT_LIST)):
-                filedict = {}
-                ##Increment MediaID variable
-                MediaID = (MediaID +1)
-                filedict.update({'MediaID' : MediaID})
-                #Category = 0
-                #filedict.update({'Category' : Category})
-                ##MD5 Field is left blank since we don't waste time calculating MD5 values right now as it will be repeated later anyways with Griffeye import.
-                MD5 = ''
-                filedict.update({'MD5' : MD5})
-                ##Join the root path and filename for fullpath
-                fullpath = os.path.abspath(os.path.join(dirpath, filename))
-                MediaSize = os.path.getsize(fullpath)
-                filedict.update({'MediaSize' : MediaSize})
-                ##Build the relative path for file relative to carveoutparent
-                RelativeFilePath = os.path.relpath(os.path.join(dirpath, filename))
-                ##Format Slashs for double slashes per VICS Examples
-                RelativeFilePath = str(RelativeFilePath.replace("\\", "/"))
-                RelativeFilePath = str(RelativeFilePath.replace("/", "\\"))
-                filedict.update({'RelativeFilePath' : RelativeFilePath})
-                if filename.lower().endswith(tuple(IMAGE_TYPES)):
-                    MimeType = 'image'
-                if filename.lower().endswith(tuple(VIDEO_TYPES)):
-                    MimeType = 'video'
-                if filename.lower().endswith(tuple(DOC_TYPES)):
-                    MimeType = 'text'                
-                filedict.update({'MimeType' : MimeType})            
-                ##Since no categorization happening during intial file recovery, IsPrecategorized is hardcoded False
-                IsPrecategorized = False
-                filedict.update({'IsPrecategorized' : IsPrecategorized})            
-                
- 
-                ##Build sourceID from cwd, not used in favor of user selected sourceID
-                #basename = os.path.basename(cwd)            
-                #sourceID = basename.split('_')[0]
-                ##build filepath
-                FilePath = (sourceID + '\\' + RelativeFilePath)
-           
-                ##Add the correct keys to secondary media files dictionary object
-                MediaFilesdict = {}
-                MediaFilesdict.update({'MD5' : MD5})
-                MediaFilesdict.update({'FileName' : filename})
-                MediaFilesdict.update({'FilePath' : FilePath})
-                
-                ##Get MAC times for files and adjust to proper json formatting per VICS spec
+                ##Valid file type identifed for JSON appending.  Use try format in order to catch any single entry exceptions for problem files that might occur.
+                try:
+                    filedict = {}
+                    ##Increment MediaID variable
+                    MediaID = (MediaID +1)
+                    filedict.update({'MediaID' : MediaID})
+                    #Category = 0
+                    #filedict.update({'Category' : Category})
+                    ##MD5 Field is left blank since we don't waste time calculating MD5 values right now as it will be repeated later anyways with Griffeye import.
+                    MD5 = ''
+                    filedict.update({'MD5' : MD5})
+                    ##Join the root path and filename for fullpath
+                    fullpath = os.path.abspath(os.path.join(dirpath, filename))
+                    MediaSize = os.path.getsize(fullpath)
+                    filedict.update({'MediaSize' : MediaSize})
+                    
+                    ##relpath function replaced with later abspath function to eliminate need to change working directory for each source
+                    '''
+                    ##Build the relative path for file relative to carveoutparent
+                    RelativeFilePath = os.path.relpath(os.path.join(dirpath, filename))
+                    ##Format Slashs for double slashes per VICS Examples
+                    RelativeFilePath = str(RelativeFilePath.replace("\\", "/"))
+                    RelativeFilePath = str(RelativeFilePath.replace("/", "\\"))
+                    filedict.update({'RelativeFilePath' : RelativeFilePath})
+                    '''
+                    
+                    ##Build the relative path for file relative to carveoutparent.  Uses abspath now rather then relpath and then conducts manual string fixup to mirror output of relpath. 
+                    ##relpath replaced to eliminate need to CWD into each sources drive/path which could cause conflicts when building jsons in multiple threads.
+                    RelativeFilePath = os.path.abspath(os.path.join(dirpath, filename))
+                    ##Format Slashs for double slashes per VICS Examples
+                    #RelativeFilePath = str(RelativeFilePath.replace("/", "\\"))
+                    RelativeFilePath = str(RelativeFilePath.replace(carveoutparent, ""))
+                    RelativeFilePath = str(RelativeFilePath.replace('\\Partition', "Partition"))
+                    filedict.update({'RelativeFilePath' : RelativeFilePath})   
+                    
+                    if filename.lower().endswith(tuple(IMAGE_TYPES)):
+                        MimeType = 'image'
+                    if filename.lower().endswith(tuple(VIDEO_TYPES)):
+                        MimeType = 'video'
+                    if filename.lower().endswith(tuple(DOC_TYPES)):
+                        MimeType = 'text'                
+                    filedict.update({'MimeType' : MimeType})            
+                    ##Since no categorization happening during intial file recovery, IsPrecategorized is hardcoded False
+                    IsPrecategorized = False
+                    filedict.update({'IsPrecategorized' : IsPrecategorized})            
+                     
+                    
+                    
+                    ##Build sourceID from base folder path, not needed wehn sourceID explicitly entered
+                    #basename = os.path.basename(cwd)            
+                    #sourceID = basename.split('_')[0]
+                    ##build filepath by joining with SourceID for proper folder tree presentation with analysis tool
+                    FilePath = (sourceID + '\\' + RelativeFilePath)
                
-                ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset
-                Created = datetime.datetime.strptime(time.ctime(os.path.getctime(fullpath)- utc_offset), '%c')
-                Created = json.dumps(Created.isoformat())
-                Created = Created + str(tzinfo)
-                Created = Created.replace('"', '')
-                MediaFilesdict.update({'Created' : Created})
-                
-                ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset                
-                Written = datetime.datetime.strptime(time.ctime(os.path.getmtime(fullpath)- utc_offset), '%c')
-                Written = json.dumps(Written.isoformat())
-                Written = Written + str(tzinfo)
-                Written = Written.replace('"', '')
-                MediaFilesdict.update({'Written' : Written})
-                
-                ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset                
-                Accessed = datetime.datetime.strptime(time.ctime(os.path.getatime(fullpath)- utc_offset), '%c')
-                Accessed = json.dumps(Accessed.isoformat())
-                Accessed = Accessed + str(tzinfo)
-                Accessed = Accessed.replace('"', '')
-                MediaFilesdict.update({'Accessed' : Accessed})
-                
-                Unallocated = True
-                MediaFilesdict.update({'Unallocated' : Unallocated})
-                MediaFilesdict.update({'sourceID' : sourceID})
-                
-                
-                ##Set Seperator thats placed in some filenames of recovered files
-                sep1 = 'Archives\\'
-                sep2 = '_'
-                sep3 = '.'
-                ##See if File is from Extracted Archive and if we can determine phys location from path
-                if '\\Archives\\' in RelativeFilePath:
-                    try:
-                        #print('Unpacked Archive Found')
-                        ##Strips to Left ##Strips at first 'Archives\\' and leading characters
-                        PhysicalLocation = str(RelativeFilePath.split(sep1,1)[1])
-                        ##Strips to Right ##Strips at first '_' and trailing characters
+                    ##Add the correct keys to secondary media files dictionary object
+                    MediaFilesdict = {}
+                    MediaFilesdict.update({'MD5' : MD5})
+                    MediaFilesdict.update({'FileName' : filename})
+                    MediaFilesdict.update({'FilePath' : FilePath})
+                    
+                    ##Get MAC times for files and adjust to proper json formatting per VICS spec
+                   
+                    ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset
+                    Created = datetime.datetime.strptime(time.ctime(os.path.getctime(fullpath)- utc_offset), '%c')
+                    ##Set Time Formatting to be JSON Compliant
+                    Created = json.dumps(Created.isoformat())
+                    Created = Created + str(tzinfo)
+                    Created = Created.replace('"', '')
+                    MediaFilesdict.update({'Created' : Created})
+                    
+                    ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset                
+                    Written = datetime.datetime.strptime(time.ctime(os.path.getmtime(fullpath)- utc_offset), '%c')
+                    ##Set Time Formatting to be JSON Compliant
+                    Written = json.dumps(Written.isoformat())
+                    Written = Written + str(tzinfo)
+                    Written = Written.replace('"', '')
+                    MediaFilesdict.update({'Written' : Written})
+                    
+                    ##Grab Filesystem timestamp and adjust to UTC time based on delta of local system offset                
+                    Accessed = datetime.datetime.strptime(time.ctime(os.path.getatime(fullpath)- utc_offset), '%c')
+                    ##Set Time Formatting to be JSON Compliant
+                    Accessed = json.dumps(Accessed.isoformat())
+                    Accessed = Accessed + str(tzinfo)
+                    Accessed = Accessed.replace('"', '')
+                    MediaFilesdict.update({'Accessed' : Accessed})
+                    
+                    Unallocated = True
+                    MediaFilesdict.update({'Unallocated' : Unallocated})
+                    MediaFilesdict.update({'SourceID' : sourceID})
+                    
+                    ##Set Seperator thats placed in some filenames of recovered files
+                    sep1 = 'Archives\\'
+                    sep2 = '_'
+                    sep3 = '.'
+                    ##See if File is from Extracted Archive and if we can determine phys location from path
+                    if '\\Archives\\' in RelativeFilePath:
+                        try:
+                            #print('Unpacked Archive Found')
+                            ##Strips to Left ##Strips at first 'Archives\\' and leading characters
+                            PhysicalLocation = str(RelativeFilePath.split(sep1,1)[1])
+                            ##Strips to Right ##Strips at first '_' and trailing characters
+                            PhysicalLocation = str(PhysicalLocation.split(sep2,1)[0])
+                            ##Strips to Right ##Strips at first '.' and trailing characters
+                            PhysicalLocation = str(PhysicalLocation.split(sep3,1)[0])                        
+                            ##Strip Leading Character and convert to int
+                            PhysicalLocation = int(PhysicalLocation[1:])
+                            MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})
+                        except:
+                            logging.info('Was not able to get valid physical location integer for Unpacked Archive File: ' + RelativeFilePath)
+                            pass                     
+                    
+                    if '\\Archives\\' not in RelativeFilePath:
+                        
+                        ##See if we can determine phys location from filename
+                        ##Strip the extension from filename
+                        PhysicalLocation = os.path.splitext(filename)[0]
+            
+                        ##Strips everything right of sep2 including sep
                         PhysicalLocation = str(PhysicalLocation.split(sep2,1)[0])
-                        ##Strips to Right ##Strips at first '.' and trailing characters
-                        PhysicalLocation = str(PhysicalLocation.split(sep3,1)[0])                        
-                        ##Strip Leading Character and convert to int
-                        PhysicalLocation = int(PhysicalLocation[1:])
-                        MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})
-                    except:
-                        logging.info('Was not able to get valid physical location integer for Unpacked Archive File: ' + RelativeFilePath)
-                        ##If unable to deduce physical sector don't add the key:value                        
-                        #PhysicalLocation = 0
-                        #MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})                     
-                
-                if '\\Archives\\' not in RelativeFilePath:
+                        ##Try and strip leading character, and See if remaining value is valid int and write to PhysicalLocation if so
+                        try:
+                            PhysicalLocation = int(PhysicalLocation[1:])
+                            MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})
+                        ##If not valid int log file and move on
+                        except:
+                            logging.info('Was not able to get valid physical location integer for ' + filename)
+                            pass
+                        
+    
                     
-                    ##See if we can determine phys location from filename
-                    ##Strip the extension from filename
-                    PhysicalLocation = os.path.splitext(filename)[0]
-        
-                    ##Strips everything right of sep2 including sep
-                    PhysicalLocation = str(PhysicalLocation.split(sep2,1)[0])
-                    ##Try and strip leading character, and See if remaining value is valid int and write to PhysicalLocation if so
-                    try:
-                        PhysicalLocation = int(PhysicalLocation[1:])
-                        MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})
-                    ##If not valid int log file and move on
-                    except:
-                        logging.info('Was not able to get valid physical location integer for ' + filename)
-                        ##If unable to deduce physical sector don't add the key:value
-                        #PhysicalLocation = 0
-                        #MediaFilesdict.update({'PhysicalLocation' : PhysicalLocation})  
-                    
-
-                
-                ##Update the subdictionary 'MediaFiles' with sub keys
-                filedict.update({'MediaFiles': [MediaFilesdict]})
+                    ##Update the subdictionary 'MediaFiles' with sub keys
+                    filedict.update({'MediaFiles': [MediaFilesdict]})
+                except:
+                    logging.exception(f'Error adding {fullpath} to {jsontarget}')
+                    pass
     
                 
                 
@@ -386,30 +412,34 @@ def buildjson(sourceID,carveoutparent):
     
     ##Cleanup Temp File
     try:
-        os.remove('temp.json')
+        os.remove(tempjson)
     except (OSError, NameError) as error:
         logging.exception('Error Removing Temp File')
         print('Error removing temp file')
         pass     
     
     ##Print and log total runtime
-    endtime = time.time()
-    total_time = endtime - startTime
-    ##print('Total Runtime= ' + str(total_time))
+    json_endTime = time.time()
+    total_time = json_endTime - json_startTime
+    #print('Total Runtime= ' + str(total_time))
     ##use time delta to format time better
     total_time = str(timedelta(seconds=total_time))
     print('_____________________________________________________________')
     
-    os.startfile(cwd)
+    ##Opens json folder location
+    os.startfile(carveoutparent)
+    ##CWD Process eliminated in lieu changes to how relpath is defined later
     ##Now that finished return script to initial CWD.
-    os.chdir(initialcwd)
-    print ('Restored Working Directory is: ' + str(initialcwd))
-    print ('JSON with ' + str(MediaID + 1) + ' Entries Generated')
-    logging.info('JSON with ' + str(MediaID + 1) + ' Entries Generated')
-    print ('Total Runtime= ' + total_time)
-    logging.info('Total Runtime= ' + total_time)
-    print ('JSON saved to: ' + str(jsonoutlocation))
-    logging.info('JSON saved to: ' + str(jsonoutlocation))
+    #os.chdir(initialcwd)
+    #print ('Restored Working Directory is: ' + str(initialcwd))
+    print ('JSON for ' + sourceID + ' with ' + str(MediaID + 1) + ' Entries Generated')
+    logging.info('JSON for ' + sourceID + ' with ' + str(MediaID + 1) + ' Entries Generated')
+    print (' Total JSON Build Time for ' + sourceID + ' = ' + total_time)
+    logging.info(' Total JSON Build Time for ' + sourceID + ' = ' + total_time)
+    print ('JSON saved to: ' + str(jsontarget))
+    logging.info('JSON saved to: ' + str(jsontarget))
+    logging.info('End buildjson')
+
     window['-STATUS-'].update('Completed')
 
 
